@@ -1,0 +1,1260 @@
+<!DOCTYPE html>
+<html lang="ja" class="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>電力系統運用コンソール - Power Grid Master</title>
+
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          colors: {
+            gridDark: '#030712',
+            panelDark: '#0b1329',
+            panelBorder: '#1e293b',
+            electricCyan: '#06b6d4',
+            electricBlue: '#3b82f6',
+            limeGreen: '#10b981',
+            amberGold: '#f59e0b',
+            dangerRed: '#ef4444'
+          },
+          fontFamily: {
+            sans: ['"Inter"', '"M PLUS Rounded 1c"', 'sans-serif'],
+            mono: ['"JetBrains Mono"', '"Share Tech Mono"', 'monospace']
+          }
+        }
+      }
+    }
+  </script>
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800;900&family=JetBrains+Mono:wght@400;700;800&family=M+PLUS+Rounded+1c:wght@500;700;900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
+
+  <style>
+    body {
+      font-family: 'Inter', 'M PLUS Rounded 1c', sans-serif;
+      background-color: #030712;
+      color: #f3f4f6;
+      user-select: none;
+      -webkit-user-select: none;
+      overflow-x: hidden;
+    }
+
+    ::-webkit-scrollbar { width: 6px; height: 6px; }
+    ::-webkit-scrollbar-track { background: #080d1a; }
+    ::-webkit-scrollbar-thumb { background: #1e293b; border-radius: 4px; }
+    ::-webkit-scrollbar-thumb:hover { background: #334155; }
+
+    input[type=range] {
+      -webkit-appearance: none;
+      background: #1e293b;
+      border-radius: 6px;
+      height: 8px;
+    }
+    input[type=range]::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      height: 20px;
+      width: 20px;
+      border-radius: 4px;
+      background: #06b6d4;
+      border: 2px solid #ffffff;
+      cursor: pointer;
+      box-shadow: 0 0 10px rgba(6, 182, 212, 0.8);
+      transition: transform 0.15s ease;
+    }
+    input[type=range]::-webkit-slider-thumb:hover {
+      transform: scale(1.2);
+      background: #22d3ee;
+    }
+
+    .btn-tactical {
+      box-shadow: 0 4px 0 #0f172a;
+      transition: all 0.1s ease;
+    }
+    .btn-tactical:active {
+      transform: translateY(2px);
+      box-shadow: 0 2px 0 #0f172a;
+    }
+
+    .scanlines {
+      background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.25) 50%);
+      background-size: 100% 4px;
+      pointer-events: none;
+    }
+  </style>
+</head>
+
+<body class="min-h-screen flex flex-col bg-slate-950 text-slate-100 font-sans selection:bg-cyan-500 selection:text-slate-950">
+
+  <header class="bg-slate-900/95 border-b border-slate-800 px-4 py-2.5 sticky top-0 z-40 backdrop-blur-md shadow-2xl">
+    <div class="max-w-[1700px] mx-auto flex flex-wrap items-center justify-between gap-3">
+      
+      <div class="flex items-center gap-3">
+        <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-cyan-500 to-blue-600 flex items-center justify-center text-slate-950 text-xl font-black shadow-lg shadow-cyan-500/20">
+          <i class="fa-solid fa-bolt-lightning"></i>
+        </div>
+        <div>
+          <div class="flex items-center gap-2">
+            <h1 class="font-black text-base sm:text-lg tracking-wider text-slate-100 flex items-center gap-2 font-mono uppercase">
+              GRID MASTER <span class="text-xs bg-cyan-950 text-cyan-400 border border-cyan-800/60 px-2 py-0.5 rounded font-bold tracking-normal">中央給電指令コンソール</span>
+            </h1>
+            <span id="system-status-indicator" class="flex items-center gap-1.5 px-2 py-0.5 rounded text-[10px] font-black uppercase bg-emerald-950 text-emerald-400 border border-emerald-800/60">
+              <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span> SYSTEM NORMAL
+            </span>
+          </div>
+          <p class="text-[11px] text-slate-400 font-mono">周波数統括制御・需給リアルタイムディスパッチシステム v4.0</p>
+        </div>
+      </div>
+
+      <!-- Quick Operational Metrics -->
+      <div class="hidden xl:flex items-center gap-6 bg-slate-950/80 px-4 py-1.5 rounded-xl border border-slate-800/80 font-mono text-xs">
+        <div>
+          <span class="text-slate-500 block text-[9px] uppercase">標準周波数</span>
+          <span class="text-cyan-400 font-bold">50.00 Hz (東日本)</span>
+        </div>
+        <div class="h-6 w-px bg-slate-800"></div>
+        <div>
+          <span class="text-slate-500 block text-[9px] uppercase">平均炭素排出</span>
+          <span id="header-co2" class="text-rose-400 font-bold">--- g/kWh</span>
+        </div>
+        <div class="h-6 w-px bg-slate-800"></div>
+        <div>
+          <span class="text-slate-500 block text-[9px] uppercase">再エネ供給比率</span>
+          <span id="header-renewable-share" class="text-emerald-400 font-bold">-- %</span>
+        </div>
+      </div>
+
+      <!-- Simulator Action Controls -->
+      <div class="flex items-center gap-2">
+        <div class="flex items-center bg-slate-950 rounded-lg p-1 border border-slate-800 text-xs font-mono">
+          <span class="text-slate-500 px-1.5 text-[10px] hidden sm:inline">難易度:</span>
+          <button onclick="setDifficulty('easy')" id="diff-easy" class="px-2.5 py-1 rounded bg-emerald-600 text-slate-950 font-bold transition">EASY</button>
+          <button onclick="setDifficulty('normal')" id="diff-normal" class="px-2.5 py-1 rounded text-slate-400 hover:text-white transition">NORMAL</button>
+          <button onclick="setDifficulty('hard')" id="diff-hard" class="px-2.5 py-1 rounded text-slate-400 hover:text-white transition">HARD</button>
+        </div>
+
+        <div class="flex items-center bg-slate-950 rounded-lg p-1 border border-slate-800 text-xs font-mono">
+          <button onclick="setSimSpeed(0)" id="spd-0" class="px-2 py-1 rounded text-slate-400 hover:text-white transition" title="一時停止">⏸️</button>
+          <button onclick="setSimSpeed(1)" id="spd-1" class="px-2 py-1 rounded bg-cyan-600 text-white font-bold">1x</button>
+          <button onclick="setSimSpeed(2)" id="spd-2" class="px-2 py-1 rounded text-slate-400 hover:text-white transition">2x</button>
+          <button onclick="setSimSpeed(5)" id="spd-5" class="px-2 py-1 rounded text-slate-400 hover:text-white transition">5x</button>
+        </div>
+
+        <button onclick="openMissionModal()" class="px-3.5 py-1.5 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white font-bold text-xs rounded-lg btn-tactical flex items-center gap-2 border border-blue-400/30">
+          <i class="fa-solid fa-list-check"></i> シナリオ選択
+        </button>
+
+        <button id="btn-sound" onclick="toggleSound()" class="w-8 h-8 rounded-lg bg-slate-800 border border-slate-700 hover:bg-slate-700 text-cyan-400 text-xs flex items-center justify-center transition" title="音効 ON/OFF">
+          <i class="fa-solid fa-volume-high"></i>
+        </button>
+      </div>
+
+    </div>
+  </header>
+
+  <main class="max-w-[1700px] mx-auto p-3 sm:p-4 flex-1 w-full grid grid-cols-1 lg:grid-cols-12 gap-4">
+
+    <!-- LEFT COLUMN: GENERATION DISPATCH FLEET CONTROLS (5 Cols) -->
+    <div class="lg:col-span-5 flex flex-col gap-3">
+
+      <!-- FREQUENCY & BALANCE CONTROL TELEMETRY -->
+      <div class="bg-slate-900/90 rounded-2xl p-4 border border-slate-800 shadow-xl space-y-3 relative">
+        
+        <!-- Emergency Safety Alert Banner -->
+        <div id="safety-banner" class="hidden bg-amber-950/90 border border-amber-500/70 rounded-xl p-2.5 flex items-center justify-between text-xs font-mono animate-pulse">
+          <div class="flex items-center gap-2 text-amber-200">
+            <i class="fa-solid fa-triangle-exclamation text-amber-400 text-sm"></i>
+            <span id="safety-advice-text">周波数が動揺中！</span>
+          </div>
+          <span id="grace-timer-badge" class="px-2 py-0.5 bg-rose-600 text-white font-bold rounded text-[10px] shrink-0">猶予: 3.0s</span>
+        </div>
+
+        <!-- System Frequency Metrics Gauges -->
+        <div class="flex items-center justify-between">
+          <div class="flex items-center gap-2">
+            <span class="w-2.5 h-2.5 rounded-full bg-cyan-400 animate-ping"></span>
+            <span class="text-xs font-mono uppercase text-slate-400 font-bold tracking-wider">電力系統周波数 & 需給予備率</span>
+          </div>
+          <div class="flex items-center gap-2">
+            <button id="btn-eals" onclick="toggleEALS()" class="px-2 py-1 rounded-md bg-emerald-950 border border-emerald-700 text-[11px] font-mono text-emerald-300 transition flex items-center gap-1">
+              <i class="fa-solid fa-shield-halved"></i> 自動緊急保護: <span id="eals-status" class="font-bold">ON</span>
+            </button>
+            <button id="btn-lfc" onclick="toggleLFC()" class="px-2 py-1 rounded-md bg-slate-800 border border-slate-700 text-[11px] font-mono text-slate-400 hover:text-cyan-300 transition flex items-center gap-1">
+              <i class="fa-solid fa-robot"></i> LFC自動調速: <span id="lfc-status" class="text-slate-500 font-bold">OFF</span>
+            </button>
+          </div>
+        </div>
+
+        <div class="grid grid-cols-2 gap-3 bg-slate-950 p-3 rounded-xl border border-slate-800">
+          <div class="text-center">
+            <span class="text-[10px] text-slate-500 font-mono uppercase block">系統周波数 (Hz)</span>
+            <div id="gauge-frequency" class="text-3xl font-black font-mono text-emerald-400 tracking-tight">50.00 <span class="text-xs text-slate-500 font-normal">Hz</span></div>
+            <div id="freq-deviation-bar" class="text-[10px] font-mono text-slate-400 mt-0.5">偏差: +0.00 Hz</div>
+          </div>
+          <div class="text-center border-l border-slate-800">
+            <span class="text-[10px] text-slate-500 font-mono uppercase block">供給予備率 (%)</span>
+            <div id="gauge-reserve" class="text-3xl font-black font-mono text-cyan-400 tracking-tight">10.0 <span class="text-xs text-slate-500 font-normal">%</span></div>
+            <div id="supply-demand-delta" class="text-[10px] font-mono text-slate-400 mt-0.5">バランス: 0 MW</div>
+          </div>
+        </div>
+
+        <!-- Supply vs Demand Balance Visual Indicator Bar -->
+        <div class="space-y-1">
+          <div class="flex justify-between text-[10px] font-mono text-slate-400">
+            <span>不足 (Demand > Supply)</span>
+            <span>平衡 (50.00Hz)</span>
+            <span>過剰 (Supply > Demand)</span>
+          </div>
+          <div class="w-full h-3 bg-slate-950 rounded-full border border-slate-800 relative overflow-hidden">
+            <div id="balance-bar" class="h-full bg-cyan-400 transition-all duration-200" style="width: 50%;"></div>
+            <div class="absolute inset-y-0 left-1/2 w-0.5 bg-white shadow-lg"></div>
+          </div>
+        </div>
+
+      </div>
+
+      <div class="bg-slate-900/90 rounded-2xl p-4 border border-slate-800 shadow-xl space-y-3 flex-1">
+        <div class="flex items-center justify-between border-b border-slate-800 pb-2">
+          <span class="text-xs font-mono font-bold text-slate-300 flex items-center gap-2">
+            <i class="fa-solid fa-sliders text-cyan-400"></i> 発電機群 出力ディスパッチ (Generation Fleet)
+          </span>
+          <button onclick="toggleRenewableCurtailment()" id="btn-curtailment" class="px-2 py-0.5 rounded text-[10px] font-mono bg-slate-800 text-slate-400 hover:text-amber-400 transition">
+            出力制御 (Curtailment): OFF
+          </button>
+        </div>
+
+        <div class="space-y-3 text-xs font-mono">
+          <!-- 1. Nuclear Thermal -->
+          <div class="bg-slate-950 p-2.5 rounded-xl border border-slate-800/80 space-y-1">
+            <div class="flex justify-between items-center">
+              <span class="font-bold text-purple-400 flex items-center gap-1.5"><i class="fa-solid fa-atom"></i> 原子力 (Nuclear)</span>
+              <span id="val-nuclear" class="text-slate-300">4,000 / 4,000 MW</span>
+            </div>
+            <input type="range" id="slider-nuclear" min="0" max="4000" step="100" value="4000" oninput="onSliderChange('nuclear', this.value)" class="w-full">
+            <div class="flex justify-between text-[9px] text-slate-500">
+              <span>ベースロード (応答性: 遅い)</span>
+              <span>Ramp: 100MW/s</span>
+            </div>
+          </div>
+
+          <!-- 2. Coal Thermal -->
+          <div class="bg-slate-950 p-2.5 rounded-xl border border-slate-800/80 space-y-1">
+            <div class="flex justify-between items-center">
+              <span class="font-bold text-rose-400 flex items-center gap-1.5"><i class="fa-solid fa-smog"></i> 石炭火力 (Coal)</span>
+              <span id="val-coal" class="text-slate-300">6,000 / 8,000 MW</span>
+            </div>
+            <input type="range" id="slider-coal" min="0" max="8000" step="100" value="6000" oninput="onSliderChange('coal', this.value)" class="w-full">
+            <div class="flex justify-between text-[9px] text-slate-500">
+              <span>重厚電源 (高CO2排出)</span>
+              <span>Ramp: 300MW/s</span>
+            </div>
+          </div>
+
+          <!-- 3. LNG Thermal -->
+          <div class="bg-slate-950 p-2.5 rounded-xl border border-slate-800/80 space-y-1">
+            <div class="flex justify-between items-center">
+              <span class="font-bold text-amber-400 flex items-center gap-1.5"><i class="fa-solid fa-fire"></i> LNG火力 (Gas Thermal)</span>
+              <span id="val-lng" class="text-slate-300">8,000 / 12,000 MW</span>
+            </div>
+            <input type="range" id="slider-lng" min="0" max="12000" step="100" value="8000" oninput="onSliderChange('lng', this.value)" class="w-full">
+            <div class="flex justify-between text-[9px] text-slate-500">
+              <span>ミドル・ピーク調整 (主力)</span>
+              <span>Ramp: 800MW/s</span>
+            </div>
+          </div>
+
+          <!-- 4. Renewables (Solar & Wind) -->
+          <div class="grid grid-cols-2 gap-2">
+            <div class="bg-slate-950 p-2 rounded-xl border border-slate-800/80">
+              <span class="text-amber-300 font-bold block text-[11px]"><i class="fa-solid fa-sun"></i> 太陽光 (PV)</span>
+              <span id="val-solar" class="text-slate-200 block text-sm font-bold my-0.5">4,500 MW</span>
+              <span class="text-[9px] text-slate-500 block">天候依存 (気象変化)</span>
+            </div>
+            <div class="bg-slate-950 p-2 rounded-xl border border-slate-800/80">
+              <span class="text-cyan-300 font-bold block text-[11px]"><i class="fa-solid fa-wind"></i> 風力 (Wind)</span>
+              <span id="val-wind" class="text-slate-200 block text-sm font-bold my-0.5">1,200 MW</span>
+              <span class="text-[9px] text-slate-500 block">変動電源</span>
+            </div>
+          </div>
+
+          <!-- 5. Pumped Hydro Storage -->
+          <div class="bg-slate-950 p-2.5 rounded-xl border border-slate-800/80 space-y-1">
+            <div class="flex justify-between items-center">
+              <span class="font-bold text-blue-400 flex items-center gap-1.5"><i class="fa-solid fa-water"></i> 揚水発電 (Pumped Hydro)</span>
+              <span id="val-hydro" class="text-slate-300">0 MW</span>
+            </div>
+            <div class="flex gap-2">
+              <button onclick="setHydroMode('pump')" id="btn-hydro-pump" class="flex-1 py-1.5 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold transition text-[11px]">汲み揚げ (揚水 -3,000MW)</button>
+              <button onclick="setHydroMode('off')" id="btn-hydro-off" class="px-3 py-1.5 rounded bg-cyan-600 text-slate-950 font-bold transition text-[11px]">停止 (OFF)</button>
+              <button onclick="setHydroMode('gen')" id="btn-hydro-gen" class="flex-1 py-1.5 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold transition text-[11px]">急速発電 (+4,000MW)</button>
+            </div>
+            <div class="flex justify-between text-[9px] text-slate-500">
+              <span id="hydro-reservoir-text">上部ダム貯水量: 82%</span>
+              <span>応答時間: < 3秒</span>
+            </div>
+          </div>
+
+          <!-- 6. Battery Storage (BESS) -->
+          <div class="bg-slate-950 p-2.5 rounded-xl border border-slate-800/80 space-y-1">
+            <div class="flex justify-between items-center">
+              <span class="font-bold text-emerald-400 flex items-center gap-1.5"><i class="fa-solid fa-battery-half"></i> 大型蓄電池 (Mega BESS)</span>
+              <span id="val-bess" class="text-slate-300">0 MW</span>
+            </div>
+            <div class="flex gap-2">
+              <button onclick="setBessMode('charge')" id="btn-bess-charge" class="flex-1 py-1.5 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold transition text-[11px]">急速充電 (-3,000MW)</button>
+              <button onclick="setBessMode('off')" id="btn-bess-off" class="px-3 py-1.5 rounded bg-cyan-600 text-slate-950 font-bold transition text-[11px]">待機 (0MW)</button>
+              <button onclick="setBessMode('discharge')" id="btn-bess-discharge" class="flex-1 py-1.5 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold transition text-[11px]">瞬時放電 (+3,000MW)</button>
+            </div>
+            <div class="space-y-0.5">
+              <div class="flex justify-between text-[9px] text-slate-500">
+                <span>SoC (充電残量)</span>
+                <span id="bess-soc-val">80.0 %</span>
+              </div>
+              <div class="w-full h-1.5 bg-slate-900 rounded-full overflow-hidden border border-slate-800">
+                <div id="bar-bess-soc" class="h-full bg-emerald-400 transition-all duration-300" style="width: 80%;"></div>
+              </div>
+            </div>
+          </div>
+
+        </div>
+      </div>
+
+    </div>
+
+    <!-- RIGHT COLUMN: TOPOLOGY MAP & TELEMETRY CHARTS (7 Cols) -->
+    <div class="lg:col-span-7 flex flex-col gap-4">
+
+      <!-- ACTIVE MISSION CARD -->
+      <div class="bg-gradient-to-r from-slate-900 via-slate-900 to-indigo-950/80 rounded-2xl p-4 border border-indigo-500/30 shadow-xl flex flex-wrap items-center justify-between gap-3 relative overflow-hidden">
+        <div class="space-y-1 max-w-xl">
+          <div class="flex items-center gap-2">
+            <span class="px-2 py-0.5 bg-indigo-500/20 text-indigo-300 border border-indigo-500/40 rounded text-[10px] font-mono font-bold uppercase">
+              ACTIVE MISSION
+            </span>
+            <span id="mission-target-freq" class="text-xs font-mono text-cyan-400">目標: 50.00Hz ±0.2Hz</span>
+          </div>
+          <h2 id="mission-title-text" class="text-base sm:text-lg font-black text-slate-100 tracking-wide">
+            ミッション 1: 猛暑のピークシフト運用
+          </h2>
+          <p id="mission-desc-text" class="text-xs text-slate-300 leading-relaxed font-mono">
+            猛暑日。都心冷房需要が急昇。周波数を50.00Hz近傍に維持しつつ予備率5%以上を確保せよ。
+          </p>
+        </div>
+
+        <div class="flex items-center gap-4 border-l border-slate-800 pl-4 shrink-0">
+          <div class="text-right">
+            <div class="text-[10px] text-slate-500 font-mono uppercase">シフト残り時間</div>
+            <div id="mission-timer" class="text-2xl font-black font-mono text-cyan-300">02:30</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="bg-slate-900/90 rounded-2xl p-3 border border-slate-800 shadow-xl flex flex-col gap-2 relative">
+        <div class="flex items-center justify-between px-1">
+          <span class="text-xs font-mono font-bold text-slate-300 flex items-center gap-2">
+            <i class="fa-solid fa-network-wired text-cyan-400"></i> 送電系統ネットワーク監視 (Grid Line Flow)
+          </span>
+          <div class="flex items-center gap-3 text-[10px] font-mono text-slate-400">
+            <span class="flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-cyan-400"></span> 基幹送電線</span>
+            <span class="flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-emerald-400"></span> 変電所</span>
+            <span class="flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-rose-500"></span> 需要エリア</span>
+          </div>
+        </div>
+
+        <div class="w-full h-[230px] sm:h-[260px] bg-slate-950 rounded-xl relative overflow-hidden border border-slate-800 scanlines">
+          <canvas id="topologyCanvas" class="w-full h-full block"></canvas>
+          
+          <!-- Blackout Alert Overlay -->
+          <div id="blackout-overlay" class="hidden absolute inset-0 bg-rose-950/90 backdrop-blur-md flex flex-col items-center justify-center text-center p-6 border-2 border-rose-500/80">
+            <div class="text-5xl mb-2 text-rose-500 animate-bounce"><i class="fa-solid fa-triangle-exclamation"></i></div>
+            <h3 class="text-2xl font-black text-rose-200 tracking-wider font-mono">系統全停電 (CATASTROPHIC BLACKOUT)</h3>
+            <p id="blackout-reason" class="text-xs text-rose-300 max-w-md mt-2 font-mono">
+              周波数が安全動作限界を下回ったため全域停電が発生しました。
+            </p>
+            <button onclick="restartMission()" class="mt-5 px-6 py-2.5 rounded-xl bg-rose-600 hover:bg-rose-500 text-white font-bold text-xs btn-tactical flex items-center gap-2 shadow-lg">
+              <i class="fa-solid fa-rotate-left"></i> コンソール再起動 (RESET)
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <div class="bg-slate-900/90 rounded-2xl p-3 border border-slate-800 shadow-xl flex flex-col gap-2 flex-1 min-h-[220px]">
+        <div class="flex items-center justify-between px-1">
+          <span class="text-xs font-mono font-bold text-slate-300 flex items-center gap-2">
+            <i class="fa-solid fa-chart-line text-cyan-400"></i> リアルタイム需給 & 周波数トレンド
+          </span>
+          <div class="flex items-center gap-3 text-[10px] font-mono">
+            <span class="text-cyan-400">━━ 総供給</span>
+            <span class="text-pink-400">━━ 総需要</span>
+            <span class="text-emerald-400">━━ 周波数 (Hz)</span>
+          </div>
+        </div>
+
+        <div class="w-full flex-1 bg-slate-950 rounded-xl p-1 border border-slate-800 relative min-h-[160px]">
+          <canvas id="chartCanvas" class="w-full h-full block"></canvas>
+        </div>
+      </div>
+
+    </div>
+
+  </main>
+
+  <!-- MISSION MODAL -->
+  <div id="mission-modal" class="fixed inset-0 bg-slate-950/80 backdrop-blur-md z-50 flex items-center justify-center p-4 hidden">
+    <div class="bg-slate-900 rounded-3xl border border-slate-800 max-w-3xl w-full p-6 shadow-2xl space-y-4 max-h-[90vh] overflow-y-auto">
+      <div class="text-center space-y-1">
+        <h2 class="text-xl font-black text-slate-100 flex items-center justify-center gap-2 font-mono uppercase">
+          <i class="fa-solid fa-crosshairs text-cyan-400"></i> ミッションシナリオ選択 (Mission Briefing)
+        </h2>
+        <p class="text-xs text-slate-400 font-mono">電力系統運用ミッションを選択してください。</p>
+      </div>
+
+      <div id="mission-list-container" class="space-y-3"></div>
+
+      <div class="text-center pt-2">
+        <button onclick="closeMissionModal()" class="px-6 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-mono text-xs btn-tactical">
+          閉じる (CLOSE)
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- RESULT MODAL -->
+  <div id="result-modal" class="fixed inset-0 bg-slate-950/90 backdrop-blur-md z-50 flex items-center justify-center p-4 hidden">
+    <div class="bg-slate-900 rounded-3xl border border-cyan-500/40 max-w-lg w-full p-6 shadow-2xl text-center space-y-4 relative overflow-hidden">
+      
+      <div class="text-4xl text-cyan-400 mb-1"><i class="fa-solid fa-award animate-bounce"></i></div>
+      <h2 class="text-2xl font-black text-slate-100 tracking-wide font-mono">シフト運用評価レポート</h2>
+      <div id="eval-grade-text" class="text-6xl font-black font-mono text-cyan-400 my-1">GRADE S</div>
+
+      <div class="bg-slate-950 p-4 rounded-2xl border border-slate-800 space-y-3 text-left font-mono text-xs">
+        <div class="flex justify-between border-b border-slate-800 pb-2">
+          <span class="text-slate-400">総合スコア:</span>
+          <span id="eval-total-score" class="text-lg font-bold text-cyan-300">9,850 Pts</span>
+        </div>
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <span class="text-slate-500 block text-[10px]">周波数安定度 (Hz)</span>
+            <span id="eval-freq-stability" class="font-bold text-emerald-400">99.2 %</span>
+          </div>
+          <div>
+            <span class="text-slate-500 block text-[10px]">平均炭素排出量</span>
+            <span id="eval-co2" class="font-bold text-rose-400">210 g/kWh</span>
+          </div>
+          <div>
+            <span class="text-slate-500 block text-[10px]">再エネ活用率</span>
+            <span id="eval-renewable" class="font-bold text-cyan-400">42.5 %</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="flex gap-3 pt-2">
+        <button onclick="restartMission()" class="flex-1 py-3 bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold font-mono rounded-xl btn-tactical text-xs">
+          <i class="fa-solid fa-rotate-left"></i> 再挑戦
+        </button>
+        <button onclick="openNextMission()" class="flex-1 py-3 bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-slate-950 font-black font-mono rounded-xl btn-tactical text-xs shadow-lg">
+          次のミッションへ ➡️
+        </button>
+      </div>
+
+    </div>
+  </div>
+
+  <script>
+    /* ==========================================================================
+       AUDIO ENGINE (WEB AUDIO API WITH RESUME SAFETY)
+       ========================================================================== */
+    class AudioEngine {
+      constructor() {
+        this.ctx = null;
+        this.enabled = true;
+      }
+
+      init() {
+        if (!this.ctx) {
+          const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+          if (AudioContextClass) {
+            this.ctx = new AudioContextClass();
+          }
+        }
+        if (this.ctx && this.ctx.state === 'suspended') {
+          this.ctx.resume();
+        }
+      }
+
+      playSwitch() {
+        if (!this.enabled) return;
+        this.init();
+        if (!this.ctx) return;
+        try {
+          const osc = this.ctx.createOscillator();
+          const gain = this.ctx.createGain();
+          osc.type = 'sine';
+          osc.frequency.setValueAtTime(800, this.ctx.currentTime);
+          osc.frequency.exponentialRampToValueAtTime(400, this.ctx.currentTime + 0.05);
+          gain.gain.setValueAtTime(0.08, this.ctx.currentTime);
+          gain.gain.linearRampToValueAtTime(0, this.ctx.currentTime + 0.05);
+          osc.connect(gain);
+          gain.connect(this.ctx.destination);
+          osc.start();
+          osc.stop(this.ctx.currentTime + 0.05);
+        } catch(e) {}
+      }
+
+      playAlarm() {
+        if (!this.enabled) return;
+        this.init();
+        if (!this.ctx) return;
+        try {
+          const osc = this.ctx.createOscillator();
+          const gain = this.ctx.createGain();
+          osc.type = 'sawtooth';
+          osc.frequency.setValueAtTime(440, this.ctx.currentTime);
+          osc.frequency.linearRampToValueAtTime(880, this.ctx.currentTime + 0.2);
+          gain.gain.setValueAtTime(0.1, this.ctx.currentTime);
+          gain.gain.linearRampToValueAtTime(0, this.ctx.currentTime + 0.2);
+          osc.connect(gain);
+          gain.connect(this.ctx.destination);
+          osc.start();
+          osc.stop(this.ctx.currentTime + 0.2);
+        } catch(e) {}
+      }
+
+      playSuccess() {
+        if (!this.enabled) return;
+        this.init();
+        if (!this.ctx) return;
+        try {
+          [523.25, 659.25, 783.99].forEach((f, i) => {
+            const osc = this.ctx.createOscillator();
+            const gain = this.ctx.createGain();
+            osc.type = 'triangle';
+            osc.frequency.setValueAtTime(f, this.ctx.currentTime + i * 0.08);
+            gain.gain.setValueAtTime(0.12, this.ctx.currentTime + i * 0.08);
+            gain.gain.linearRampToValueAtTime(0, this.ctx.currentTime + i * 0.08 + 0.25);
+            osc.connect(gain);
+            gain.connect(this.ctx.destination);
+            osc.start(this.ctx.currentTime + i * 0.08);
+            osc.stop(this.ctx.currentTime + i * 0.08 + 0.25);
+          });
+        } catch(e) {}
+      }
+    }
+
+    const sound = new AudioEngine();
+
+    function toggleSound() {
+      sound.enabled = !sound.enabled;
+      const btn = document.getElementById('btn-sound');
+      btn.innerHTML = sound.enabled ? '<i class="fa-solid fa-volume-high"></i>' : '<i class="fa-solid fa-volume-xmark"></i>';
+      btn.className = sound.enabled ? 
+        'w-8 h-8 rounded-lg bg-slate-800 border border-slate-700 hover:bg-slate-700 text-cyan-400 text-xs flex items-center justify-center transition' : 
+        'w-8 h-8 rounded-lg bg-slate-800 border border-slate-700 hover:bg-slate-700 text-slate-500 text-xs flex items-center justify-center transition';
+    }
+
+    // Attach user gesture handler to resume sound
+    document.addEventListener('click', () => sound.init(), { once: true });
+
+    /* ==========================================================================
+       MISSIONS DEFINITION
+       ========================================================================== */
+    const MISSIONS = [
+      {
+        id: 1,
+        title: "ミッション 1: 猛暑のピークシフト運用",
+        desc: "猛暑日。都心冷房需要が急上昇。周波数を50.00Hz近傍に維持しつつ予備率5%以上を確保せよ。",
+        difficulty: "初級",
+        duration: 150,
+        baseDemand: 22000,
+        weather: 'sunny',
+        initPlants: { nuclear: 4000, coal: 6000, lng: 8000 },
+        event: null
+      },
+      {
+        id: 2,
+        title: "ミッション 2: ゲリラ豪雨と太陽光急減ショック",
+        desc: "急激な積乱雲発生！太陽光発電が4,000MW急激降下。LNGおよび揚水発電で緊急バックアップせよ。",
+        difficulty: "中級",
+        duration: 150,
+        baseDemand: 20000,
+        weather: 'storm_event',
+        initPlants: { nuclear: 4000, coal: 5000, lng: 6000 },
+        event: 'solar_drop'
+      },
+      {
+        id: 3,
+        title: "ミッション 3: 1,000MW 大型火力発電所突発トリップ",
+        desc: "N-1脱落障害！大型LNG火力(1,000MW)が突発停止。迅速に揚水・蓄電池を起動して周波数を保護せよ。",
+        difficulty: "上級",
+        duration: 120,
+        baseDemand: 21000,
+        weather: 'cloudy',
+        initPlants: { nuclear: 4000, coal: 6000, lng: 9000 },
+        event: 'thermal_trip'
+      },
+      {
+        id: 4,
+        title: "ミッション 4: ゼロカーボン＆再エネ100%挑戦",
+        desc: "火力発電ゼロ！太陽光・風力・揚水・蓄電池のみで需給バランスを調整する超高難易度運用。",
+        difficulty: "超上級",
+        duration: 180,
+        baseDemand: 12000,
+        weather: 'windy_sunny',
+        initPlants: { nuclear: 0, coal: 0, lng: 0 },
+        event: 'renewable_only'
+      },
+      {
+        id: 5,
+        title: "サンドボックスモード (フリー運用)",
+        desc: "時間制限や障害イベントなし。自由な設定で系統運用を体験。",
+        difficulty: "フリー",
+        duration: 99999,
+        baseDemand: 18000,
+        weather: 'sunny',
+        initPlants: { nuclear: 4000, coal: 5000, lng: 7000 },
+        event: 'sandbox'
+      }
+    ];
+
+    /* ==========================================================================
+       SIMULATION STATE & CONFIGURATION
+       ========================================================================== */
+    let currentMissionIdx = 0;
+    let simSpeed = 1;
+    let simTime = 0;
+    let isBlackout = false;
+    let autoLFC = false;
+    let autoEALS = true;
+    let renewableCurtailment = false;
+    let difficulty = 'easy';
+    let graceCountdown = 3.0;
+
+    const DIFF_CONFIG = {
+      easy: { inertiaMult: 3.5, maxRoCoF: 0.3, graceTime: 4.5 },
+      normal: { inertiaMult: 2.0, maxRoCoF: 0.6, graceTime: 2.5 },
+      hard: { inertiaMult: 1.0, maxRoCoF: 1.0, graceTime: 1.0 }
+    };
+
+    const state = {
+      freq: 50.00,
+      inertia: 20000,
+      demand: 22000,
+      
+      plants: {
+        nuclear: { actual: 4000, target: 4000, max: 4000, ramp: 120, co2: 0 },
+        coal: { actual: 6000, target: 6000, max: 8000, ramp: 350, co2: 850 },
+        lng: { actual: 8000, target: 8000, max: 12000, ramp: 900, co2: 400 },
+        solar: { actual: 4500, max: 8000, co2: 0 },
+        wind: { actual: 1200, max: 3000, co2: 0 },
+        hydro: { mode: 'off', actual: 0, maxGen: 4000, maxPump: 3000, reservoir: 0.82 },
+        bess: { mode: 'off', actual: 0, maxPower: 3000, soc: 0.80, capacityMWh: 5000 }
+      },
+
+      history: { supply: [], demand: [], freq: [] }
+    };
+
+    /* ==========================================================================
+       STREAMING_CHUNK:Writing Controls, Handlers, and Physics Engine...
+       ========================================================================== */
+    function setDifficulty(diff) {
+      difficulty = diff;
+      ['easy', 'normal', 'hard'].forEach(d => {
+        const btn = document.getElementById(`diff-${d}`);
+        if (btn) {
+          btn.className = (d === diff) ? 
+            (d === 'easy' ? 'px-2.5 py-1 rounded bg-emerald-600 text-slate-950 font-bold transition' :
+             d === 'normal' ? 'px-2.5 py-1 rounded bg-cyan-600 text-slate-950 font-bold transition' :
+             'px-2.5 py-1 rounded bg-rose-600 text-white font-bold transition') :
+            'px-2.5 py-1 rounded text-slate-400 hover:text-white transition';
+        }
+      });
+      sound.playSwitch();
+    }
+
+    function setSimSpeed(spd) {
+      simSpeed = spd;
+      [0, 1, 2, 5].forEach(s => {
+        const btn = document.getElementById(`spd-${s}`);
+        if (btn) {
+          btn.className = (s === spd) ? 
+            'px-2 py-1 rounded bg-cyan-600 text-white font-bold' : 
+            'px-2 py-1 rounded text-slate-400 hover:text-white transition';
+        }
+      });
+      sound.playSwitch();
+    }
+
+    function toggleEALS() {
+      autoEALS = !autoEALS;
+      document.getElementById('eals-status').innerText = autoEALS ? 'ON' : 'OFF';
+      document.getElementById('btn-eals').className = autoEALS ? 
+        'px-2 py-1 rounded-md bg-emerald-950 border border-emerald-700 text-[11px] font-mono text-emerald-300 transition flex items-center gap-1' :
+        'px-2 py-1 rounded-md bg-slate-900 border border-slate-800 text-[11px] font-mono text-slate-500 transition flex items-center gap-1';
+      sound.playSwitch();
+    }
+
+    function toggleLFC() {
+      autoLFC = !autoLFC;
+      document.getElementById('lfc-status').innerText = autoLFC ? 'ON' : 'OFF';
+      document.getElementById('btn-lfc').className = autoLFC ? 
+        'px-2 py-1 rounded-md bg-cyan-950 border border-cyan-700 text-[11px] font-mono text-cyan-300 transition flex items-center gap-1' :
+        'px-2 py-1 rounded-md bg-slate-800 border border-slate-700 text-[11px] font-mono text-slate-400 hover:text-cyan-300 transition flex items-center gap-1';
+      sound.playSwitch();
+    }
+
+    function toggleRenewableCurtailment() {
+      renewableCurtailment = !renewableCurtailment;
+      const btn = document.getElementById('btn-curtailment');
+      btn.innerText = `出力制御 (Curtailment): ${renewableCurtailment ? 'ON' : 'OFF'}`;
+      btn.className = renewableCurtailment ? 
+        'px-2 py-0.5 rounded text-[10px] font-mono bg-amber-500 text-slate-950 font-bold transition' : 
+        'px-2 py-0.5 rounded text-[10px] font-mono bg-slate-800 text-slate-400 hover:text-amber-400 transition';
+      sound.playSwitch();
+    }
+
+    function onSliderChange(type, val) {
+      if (isBlackout) return;
+      state.plants[type].target = Number(val);
+    }
+
+    function setHydroMode(mode) {
+      if (isBlackout) return;
+      state.plants.hydro.mode = mode;
+      ['pump', 'off', 'gen'].forEach(m => {
+        const btn = document.getElementById(`btn-hydro-${m}`);
+        if (btn) {
+          btn.className = (m === mode) ? 
+            'flex-1 py-1.5 rounded bg-blue-600 text-white font-bold transition text-[11px]' : 
+            'flex-1 py-1.5 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold transition text-[11px]';
+        }
+      });
+      sound.playSwitch();
+    }
+
+    function setBessMode(mode) {
+      if (isBlackout) return;
+      state.plants.bess.mode = mode;
+      ['charge', 'off', 'discharge'].forEach(m => {
+        const btn = document.getElementById(`btn-bess-${m}`);
+        if (btn) {
+          btn.className = (m === mode) ? 
+            'flex-1 py-1.5 rounded bg-emerald-600 text-slate-950 font-bold transition text-[11px]' : 
+            'flex-1 py-1.5 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold transition text-[11px]';
+        }
+      });
+      sound.playSwitch();
+    }
+
+    function getCalculatedTotalPower() {
+      return state.plants.nuclear.actual +
+             state.plants.coal.actual +
+             state.plants.lng.actual +
+             state.plants.solar.actual +
+             state.plants.wind.actual +
+             state.plants.hydro.actual +
+             state.plants.bess.actual;
+    }
+
+    /* ==========================================================================
+       SIMULATION PHYSICS LOOP
+       ========================================================================== */
+    function updateSimulation(dt) {
+      if (isBlackout || simSpeed === 0) return;
+
+      const effectiveDt = dt * simSpeed;
+      const m = MISSIONS[currentMissionIdx];
+      const cfg = DIFF_CONFIG[difficulty];
+
+      // 1. Mission Timer
+      if (m.duration < 9000) {
+        simTime -= effectiveDt;
+        if (simTime <= 0) {
+          simTime = 0;
+          evaluateShiftResult();
+          return;
+        }
+      }
+
+      // 2. Weather & Renewables Dynamic Generation
+      if (m.weather === 'storm_event' && simTime < m.duration - 15 && simTime > m.duration - 35) {
+        state.plants.solar.actual = Math.max(1000, state.plants.solar.actual - 250 * effectiveDt);
+      } else if (m.weather === 'windy_sunny') {
+        state.plants.solar.actual = 5500 + Math.sin(Date.now() * 0.0008) * 400;
+        state.plants.wind.actual = 2200 + Math.cos(Date.now() * 0.001) * 300;
+      } else {
+        state.plants.solar.actual = 4500;
+        state.plants.wind.actual = 1200;
+      }
+
+      if (renewableCurtailment) {
+        state.plants.solar.actual *= 0.2;
+        state.plants.wind.actual *= 0.2;
+      }
+
+      // 3. Plant Ramp Control
+      ['nuclear', 'coal', 'lng'].forEach(type => {
+        const p = state.plants[type];
+        if (p.actual < p.target) {
+          p.actual = Math.min(p.target, p.actual + p.ramp * effectiveDt);
+        } else if (p.actual > p.target) {
+          p.actual = Math.max(p.target, p.actual - p.ramp * effectiveDt);
+        }
+      });
+
+      // 4. Pumped Hydro Operations & Reservoir Integration
+      const h = state.plants.hydro;
+      if (h.mode === 'gen' && h.reservoir > 0.01) {
+        h.actual = h.maxGen;
+        h.reservoir = Math.max(0, h.reservoir - 0.002 * effectiveDt);
+      } else if (h.mode === 'pump' && h.reservoir < 0.99) {
+        h.actual = -h.maxPump;
+        h.reservoir = Math.min(1.0, h.reservoir + 0.002 * effectiveDt);
+      } else {
+        h.actual = 0;
+      }
+
+      // 5. Battery (BESS) SoC Integration
+      const b = state.plants.bess;
+      if (b.mode === 'discharge' && b.soc > 0.01) {
+        b.actual = b.maxPower;
+        b.soc = Math.max(0, b.soc - 0.003 * effectiveDt);
+      } else if (b.mode === 'charge' && b.soc < 0.99) {
+        b.actual = -b.maxPower;
+        b.soc = Math.min(1.0, b.soc + 0.003 * effectiveDt);
+      } else {
+        b.actual = 0;
+      }
+
+      // 6. Emergency Auto Load-Shedding & Safeguard (EALS)
+      const totalPower = getCalculatedTotalPower();
+      const imbalance = totalPower - state.demand;
+
+      if (autoEALS && state.freq < 49.20 && b.soc > 0.05 && b.mode !== 'discharge') {
+        setBessMode('discharge');
+        sound.playAlarm();
+      }
+
+      // 7. Auto-LFC PID Adjustment
+      if (autoLFC) {
+        const err = state.demand - totalPower;
+        if (Math.abs(err) > 50) {
+          const adj = err * 0.15 * cfg.inertiaMult;
+          state.plants.lng.target = Math.max(0, Math.min(state.plants.lng.max, state.plants.lng.target + adj));
+          const lngSlider = document.getElementById('slider-lng');
+          if (lngSlider) lngSlider.value = state.plants.lng.target;
+        }
+      }
+
+      // 8. Grid Frequency Physics Mechanics
+      const effectiveInertia = state.inertia * cfg.inertiaMult;
+      const rawRocof = (imbalance / effectiveInertia) * 4.0;
+      const clampedRocof = Math.max(-cfg.maxRoCoF, Math.min(cfg.maxRoCoF, rawRocof));
+
+      state.freq += clampedRocof * effectiveDt;
+      state.freq += (50.00 - state.freq) * 0.25 * effectiveDt; // Restoration dampener
+
+      // 9. Grace Period & Safety Warning Banner
+      const dev = Math.abs(state.freq - 50.00);
+      const banner = document.getElementById('safety-banner');
+      const advice = document.getElementById('safety-advice-text');
+      const timerBadge = document.getElementById('grace-timer-badge');
+
+      if (dev > 0.50) {
+        banner.classList.remove('hidden');
+        if (state.freq < 50.00) {
+          advice.innerHTML = `⚠️ 周波数低下中 (${state.freq.toFixed(2)}Hz)！LNG火力を上げるか蓄電池/揚水を「放電」してください！`;
+        } else {
+          advice.innerHTML = `⚠️ 周波数上昇中 (${state.freq.toFixed(2)}Hz)！LNG火力を下げるか蓄電池を「充電」してください！`;
+        }
+
+        if (dev > 1.20) {
+          graceCountdown -= effectiveDt;
+          timerBadge.innerText = `保護停止まで: ${Math.max(0, graceCountdown).toFixed(1)}s`;
+          if (graceCountdown <= 0) {
+            triggerBlackout(`周波数偏差制限 (${state.freq.toFixed(2)} Hz) の超過が持続したため保護継電器が作動しました。`);
+          }
+        } else {
+          graceCountdown = cfg.graceTime;
+          timerBadge.innerText = `警戒動作中`;
+        }
+      } else {
+        banner.classList.add('hidden');
+        graceCountdown = cfg.graceTime;
+      }
+
+      // Hard limits check
+      if (state.freq < 45.00 || state.freq > 55.00) {
+        triggerBlackout('系統破壊（動作限界超過）により全領域がブラックアウトしました。');
+      }
+
+      // Record telemetry history
+      state.history.supply.push(totalPower);
+      state.history.demand.push(state.demand);
+      state.history.freq.push(state.freq);
+      if (state.history.supply.length > 90) {
+        state.history.supply.shift();
+        state.history.demand.shift();
+        state.history.freq.shift();
+      }
+    }
+
+    function triggerBlackout(reason) {
+      isBlackout = true;
+      sound.playAlarm();
+      document.getElementById('blackout-reason').innerText = reason;
+      document.getElementById('blackout-overlay').classList.remove('hidden');
+    }
+
+    /* ==========================================================================
+       STREAMING_CHUNK:Writing Canvas Rendering Engine Functions...
+       ========================================================================== */
+    let topCanvas, topCtx, chartCanvas, chartCtx;
+
+    function initCanvases() {
+      topCanvas = document.getElementById('topologyCanvas');
+      chartCanvas = document.getElementById('chartCanvas');
+
+      if (topCanvas) topCtx = topCanvas.getContext('2d');
+      if (chartCanvas) chartCtx = chartCanvas.getContext('2d');
+
+      resizeCanvases();
+      window.addEventListener('resize', resizeCanvases);
+    }
+
+    function resizeCanvases() {
+      [topCanvas, chartCanvas].forEach(canvas => {
+        if (!canvas) return;
+        const rect = canvas.parentElement.getBoundingClientRect();
+        canvas.width = rect.width * window.devicePixelRatio;
+        canvas.height = rect.height * window.devicePixelRatio;
+      });
+    }
+
+    function renderTopologyMap() {
+      if (!topCtx || !topCanvas) return;
+      const w = topCanvas.width;
+      const h = topCanvas.height;
+
+      topCtx.save();
+      topCtx.scale(window.devicePixelRatio, window.devicePixelRatio);
+      const displayW = w / window.devicePixelRatio;
+      const displayH = h / window.devicePixelRatio;
+
+      topCtx.clearRect(0, 0, displayW, displayH);
+
+      const nodes = {
+        nuc: { x: displayW * 0.10, y: displayH * 0.20, label: '原子力', icon: '⚛️', color: '#a855f7' },
+        coal: { x: displayW * 0.10, y: displayH * 0.50, label: '石炭火力', icon: '🏭', color: '#ef4444' },
+        lng: { x: displayW * 0.10, y: displayH * 0.80, label: 'LNG火力', icon: '💨', color: '#f59e0b' },
+        res: { x: displayW * 0.32, y: displayH * 0.25, label: '再エネ群', icon: '☀️', color: '#eab308' },
+        hydro: { x: displayW * 0.32, y: displayH * 0.75, label: '揚水発電', icon: '🌊', color: '#3b82f6' },
+        substation: { x: displayW * 0.55, y: displayH * 0.50, label: '中央変電所', icon: '⚡', color: '#06b6d4' },
+        industrial: { x: displayW * 0.88, y: displayH * 0.20, label: '臨海工業', icon: '🏭', color: '#ec4899' },
+        cbd: { x: displayW * 0.88, y: displayH * 0.45, label: '都心CBD', icon: '🏢', color: '#a855f7' },
+        residential: { x: displayW * 0.88, y: displayH * 0.70, label: '住宅街', icon: '🏠', color: '#10b981' }
+      };
+
+      const connections = [
+        { from: nodes.nuc, to: nodes.substation },
+        { from: nodes.coal, to: nodes.substation },
+        { from: nodes.lng, to: nodes.substation },
+        { from: nodes.res, to: nodes.substation },
+        { from: nodes.hydro, to: nodes.substation },
+        { from: nodes.substation, to: nodes.industrial },
+        { from: nodes.substation, to: nodes.cbd },
+        { from: nodes.substation, to: nodes.residential }
+      ];
+
+      connections.forEach(conn => {
+        topCtx.beginPath();
+        topCtx.moveTo(conn.from.x, conn.from.y);
+        topCtx.lineTo(conn.to.x, conn.to.y);
+        topCtx.strokeStyle = '#1e293b';
+        topCtx.lineWidth = 2;
+        topCtx.stroke();
+
+        if (!isBlackout) {
+          const speed = Date.now() * 0.002;
+          const progress = (speed % 1);
+          const px = conn.from.x + (conn.to.x - conn.from.x) * progress;
+          const py = conn.from.y + (conn.to.y - conn.from.y) * progress;
+
+          topCtx.beginPath();
+          topCtx.arc(px, py, 3.5, 0, Math.PI * 2);
+          topCtx.fillStyle = '#06b6d4';
+          topCtx.fill();
+        }
+      });
+
+      Object.values(nodes).forEach(node => {
+        topCtx.beginPath();
+        topCtx.arc(node.x, node.y, 16, 0, Math.PI * 2);
+        topCtx.fillStyle = '#0f172a';
+        topCtx.strokeStyle = isBlackout ? '#475569' : node.color;
+        topCtx.lineWidth = 2;
+        topCtx.fill();
+        topCtx.stroke();
+
+        topCtx.font = '12px sans-serif';
+        topCtx.textAlign = 'center';
+        topCtx.textBaseline = 'middle';
+        topCtx.fillText(isBlackout ? '❌' : node.icon, node.x, node.y);
+
+        topCtx.font = 'bold 9px "JetBrains Mono"';
+        topCtx.fillStyle = '#94a3b8';
+        topCtx.fillText(node.label, node.x, node.y + 24);
+      });
+
+      topCtx.restore();
+    }
+
+    function renderTelemetryChart() {
+      if (!chartCtx || !chartCanvas) return;
+      const w = chartCanvas.width;
+      const h = chartCanvas.height;
+
+      chartCtx.save();
+      chartCtx.scale(window.devicePixelRatio, window.devicePixelRatio);
+      const displayW = w / window.devicePixelRatio;
+      const displayH = h / window.devicePixelRatio;
+
+      chartCtx.clearRect(0, 0, displayW, displayH);
+
+      const supplyData = state.history.supply;
+      const demandData = state.history.demand;
+      const freqData = state.history.freq;
+
+      if (supplyData.length < 2) {
+        chartCtx.restore();
+        return;
+      }
+
+      const maxVal = 30000;
+      const minVal = 0;
+
+      // Draw Supply Line (Cyan)
+      chartCtx.beginPath();
+      chartCtx.strokeStyle = '#06b6d4';
+      chartCtx.lineWidth = 2;
+      supplyData.forEach((val, i) => {
+        const x = (i / 90) * displayW;
+        const y = displayH - ((val - minVal) / (maxVal - minVal)) * displayH;
+        if (i === 0) chartCtx.moveTo(x, y);
+        else chartCtx.lineTo(x, y);
+      });
+      chartCtx.stroke();
+
+      // Draw Demand Line (Pink)
+      chartCtx.beginPath();
+      chartCtx.strokeStyle = '#ec4899';
+      chartCtx.lineWidth = 2;
+      demandData.forEach((val, i) => {
+        const x = (i / 90) * displayW;
+        const y = displayH - ((val - minVal) / (maxVal - minVal)) * displayH;
+        if (i === 0) chartCtx.moveTo(x, y);
+        else chartCtx.lineTo(x, y);
+      });
+      chartCtx.stroke();
+
+      // Draw Frequency Line (Emerald)
+      chartCtx.beginPath();
+      chartCtx.strokeStyle = '#10b981';
+      chartCtx.lineWidth = 1.5;
+      freqData.forEach((f, i) => {
+        const x = (i / 90) * displayW;
+        const normF = (f - 49.0) / 2.0;
+        const y = displayH - Math.max(0, Math.min(1, normF)) * displayH;
+        if (i === 0) chartCtx.moveTo(x, y);
+        else chartCtx.lineTo(x, y);
+      });
+      chartCtx.stroke();
+
+      chartCtx.restore();
+    }
+
+    /* ==========================================================================
+       UI DASHBOARD UPDATER
+       ========================================================================== */
+    function updateDashboardUI() {
+      // Frequency Gauge
+      const freqElem = document.getElementById('gauge-frequency');
+      freqElem.innerHTML = `${state.freq.toFixed(2)} <span class="text-xs text-slate-500 font-normal">Hz</span>`;
+      
+      const dev = state.freq - 50.00;
+      document.getElementById('freq-deviation-bar').innerText = `偏差: ${dev >= 0 ? '+' : ''}${dev.toFixed(2)} Hz`;
+
+      if (Math.abs(dev) > 0.3) {
+        freqElem.className = 'text-3xl font-black font-mono text-rose-500 tracking-tight flex items-baseline gap-1 animate-pulse';
+      } else {
+        freqElem.className = 'text-3xl font-black font-mono text-emerald-400 tracking-tight flex items-baseline gap-1';
+      }
+
+      // Reserve Margin
+      const totalPower = getCalculatedTotalPower();
+      const reserveMargin = ((totalPower - state.demand) / state.demand) * 100;
+      document.getElementById('gauge-reserve').innerHTML = `${reserveMargin.toFixed(1)} <span class="text-xs text-slate-500 font-normal">%</span>`;
+
+      const ratio = totalPower / state.demand;
+      const pct = Math.max(0, Math.min(100, ratio * 50));
+      document.getElementById('balance-bar').style.width = `${pct}%`;
+      document.getElementById('supply-demand-delta').innerText = `バランス: ${Math.round(totalPower - state.demand)} MW`;
+
+      // Text Power Outputs
+      document.getElementById('val-nuclear').innerText = `${Math.round(state.plants.nuclear.actual).toLocaleString()} / 4,000 MW`;
+      document.getElementById('val-coal').innerText = `${Math.round(state.plants.coal.actual).toLocaleString()} / 8,000 MW`;
+      document.getElementById('val-lng').innerText = `${Math.round(state.plants.lng.actual).toLocaleString()} / 12,000 MW`;
+      document.getElementById('val-solar').innerText = `${Math.round(state.plants.solar.actual).toLocaleString()} MW`;
+      document.getElementById('val-wind').innerText = `${Math.round(state.plants.wind.actual).toLocaleString()} MW`;
+
+      const hydroTxt = state.plants.hydro.actual > 0 ? `+${state.plants.hydro.actual} MW (発電)` :
+                       state.plants.hydro.actual < 0 ? `${state.plants.hydro.actual} MW (揚水)` : '0 MW';
+      document.getElementById('val-hydro').innerText = hydroTxt;
+      document.getElementById('hydro-reservoir-text').innerText = `上部ダム貯水量: ${Math.round(state.plants.hydro.reservoir * 100)}%`;
+
+      const bessTxt = state.plants.bess.actual > 0 ? `+${state.plants.bess.actual} MW (放電)` :
+                      state.plants.bess.actual < 0 ? `${state.plants.bess.actual} MW (充電)` : '0 MW';
+      document.getElementById('val-bess').innerText = bessTxt;
+      document.getElementById('bess-soc-val').innerText = `${(state.plants.bess.soc * 100).toFixed(1)} % (${Math.round(state.plants.bess.soc * 5000)} MWh)`;
+      document.getElementById('bar-bess-soc').style.width = `${state.plants.bess.soc * 100}%`;
+
+      // Timer
+      const mins = String(Math.floor(simTime / 60)).padStart(2, '0');
+      const secs = String(Math.floor(simTime % 60)).padStart(2, '0');
+      document.getElementById('mission-timer').innerText = `${mins}:${secs}`;
+
+      // Header Aggregates
+      const co2Total = (state.plants.coal.actual * 850 + state.plants.lng.actual * 400) / (totalPower || 1);
+      document.getElementById('header-co2').innerText = `${Math.round(co2Total)} g/kWh`;
+
+      const reTotal = ((state.plants.solar.actual + state.plants.wind.actual + (state.plants.hydro.actual > 0 ? state.plants.hydro.actual : 0)) / (totalPower || 1)) * 100;
+      document.getElementById('header-renewable-share').innerText = `${reTotal.toFixed(1)} %`;
+    }
+
+    /* ==========================================================================
+       MISSION MANAGEMENT & LIFECYCLE
+       ========================================================================== */
+    function loadMission(idx) {
+      currentMissionIdx = idx;
+      const m = MISSIONS[idx];
+
+      simTime = m.duration;
+      isBlackout = false;
+      state.freq = 50.00;
+      state.demand = m.baseDemand;
+
+      // Reset plants
+      Object.keys(m.initPlants).forEach(k => {
+        state.plants[k].actual = m.initPlants[k];
+        state.plants[k].target = m.initPlants[k];
+        const slider = document.getElementById(`slider-${k}`);
+        if (slider) slider.value = m.initPlants[k];
+      });
+
+      setHydroMode('off');
+      setBessMode('off');
+      state.plants.bess.soc = 0.80;
+      state.plants.hydro.reservoir = 0.82;
+
+      state.history = { supply: [], demand: [], freq: [] };
+
+      document.getElementById('mission-title-text').innerText = m.title;
+      document.getElementById('mission-desc-text').innerText = m.desc;
+      document.getElementById('blackout-overlay').classList.add('hidden');
+      document.getElementById('result-modal').classList.add('hidden');
+
+      sound.playSwitch();
+    }
+
+    function evaluateShiftResult() {
+      sound.playSuccess();
+      confetti({ particleCount: 120, spread: 80, origin: { y: 0.6 } });
+
+      const avgFreqDev = state.history.freq.reduce((a, b) => a + Math.abs(b - 50.0), 0) / (state.history.freq.length || 1);
+      const stabilityScore = Math.max(0, 100 - (avgFreqDev * 120));
+      const totalScore = Math.round(stabilityScore * 100);
+
+      document.getElementById('eval-total-score').innerText = `${totalScore.toLocaleString()} Pts`;
+      document.getElementById('eval-freq-stability').innerText = `${stabilityScore.toFixed(1)} %`;
+
+      let grade = 'S';
+      if (totalScore < 7000) grade = 'C';
+      else if (totalScore < 8500) grade = 'B';
+      else if (totalScore < 9500) grade = 'A';
+
+      document.getElementById('eval-grade-text').innerText = `GRADE ${grade}`;
+      document.getElementById('result-modal').classList.remove('hidden');
+    }
+
+    function openNextMission() {
+      document.getElementById('result-modal').classList.add('hidden');
+      loadMission((currentMissionIdx + 1) % MISSIONS.length);
+    }
+
+    function openMissionModal() {
+      const container = document.getElementById('mission-list-container');
+      container.innerHTML = '';
+
+      MISSIONS.forEach((m, idx) => {
+        const item = document.createElement('div');
+        item.className = 'bg-slate-950 p-4 rounded-2xl border border-slate-800 hover:border-cyan-500/60 transition cursor-pointer flex items-center justify-between group font-mono';
+        item.onclick = () => {
+          loadMission(idx);
+          closeMissionModal();
+        };
+        item.innerHTML = `
+          <div class="space-y-1">
+            <div class="flex items-center gap-2">
+              <span class="px-2 py-0.5 rounded text-[10px] font-bold bg-cyan-950 text-cyan-400 border border-cyan-800/60">${m.difficulty}</span>
+              <span class="font-bold text-slate-200 text-sm group-hover:text-cyan-300 transition">${m.title}</span>
+            </div>
+            <p class="text-xs text-slate-400 font-sans">${m.desc}</p>
+          </div>
+          <button class="px-4 py-2 rounded-xl bg-cyan-600 hover:bg-cyan-500 text-slate-950 font-black text-xs shrink-0 btn-tactical">
+            開始 ➡️
+          </button>
+        `;
+        container.appendChild(item);
+      });
+
+      document.getElementById('mission-modal').classList.remove('hidden');
+    }
+
+    function closeMissionModal() {
+      document.getElementById('mission-modal').classList.add('hidden');
+    }
+
+    function restartMission() {
+      loadMission(currentMissionIdx);
+    }
+
+    /* ==========================================================================
+       MAIN ANIMATION LOOP (REQUEST ANIMATION FRAME)
+       ========================================================================== */
+    let lastTime = performance.now();
+
+    function mainLoop(time) {
+      const dt = Math.min(0.1, (time - lastTime) / 1000);
+      lastTime = time;
+
+      updateSimulation(dt);
+      updateDashboardUI();
+      renderTopologyMap();
+      renderTelemetryChart();
+
+      requestAnimationFrame(mainLoop);
+    }
+
+    window.onload = function() {
+      initCanvases();
+      loadMission(0);
+      requestAnimationFrame(mainLoop);
+    };
+  </script>
+</body>
+</html>
